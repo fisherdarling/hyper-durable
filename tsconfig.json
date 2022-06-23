@@ -1,16 +1,26 @@
 {
-  "compilerOptions": {
-    "target": "esnext",
-    "module": "esnext",
-    "lib": ["esnext"],
-    "types": ["@cloudflare/workers-types", "jest"],
-    "moduleResolution": "node",
-    "noEmit": true,
-    "esModuleInterop": true,
-    "baseUrl": "./",
-    "paths": {
-      "@/*": ["src/*"]
-    }
-  },
-  "include": ["src/**/*", "test/**/*"]
+    "compilerOptions": {
+        "target": "esnext",
+        "module": "esnext",
+        "lib": [
+            "esnext"
+        ],
+        "types": [
+            "@cloudflare/workers-types",
+            "jest"
+        ],
+        "moduleResolution": "node",
+        "noEmit": true,
+        "esModuleInterop": true,
+        "baseUrl": "./",
+        "paths": {
+            "@/*": [
+                "src/*"
+            ]
+        }
+    },
+    "include": [
+        "src/**/*",
+        "test/**/*"
+    ]
 }

@@ -1,5 +1,5 @@
-import { Router } from 'itty-router';
-import { HyperError } from './HyperError';
+import { Router } from "itty-router";
+import { HyperError } from "./HyperError";
 
 interface HyperState<T> extends DurableObjectState {
   dirty: Set<Extract<keyof T, string>>;
@@ -8,7 +8,8 @@ interface HyperState<T> extends DurableObjectState {
   tempKey: string;
 }
 
-export class HyperDurable<T extends object, Env = unknown> implements DurableObject {
+export class HyperDurable<T extends object, Env = unknown>
+  implements DurableObject {
   readonly isProxy?: boolean;
   readonly original?: any;
   env: Env;
@@ -22,7 +23,7 @@ export class HyperDurable<T extends object, Env = unknown> implements DurableObj
       ...state,
       dirty: new Set(),
       persisted: new Set(),
-      tempKey: ''
+      tempKey: "",
     };
     this.storage = state.storage;
     this.router = Router();
@@ -31,21 +32,26 @@ export class HyperDurable<T extends object, Env = unknown> implements DurableObj
     const handler = {
       get: (target: any, key: string, receiver: any) => {
         // Reserved key to confirm this is a proxy
-        if (key === 'isProxy') return true;
+        if (key === "isProxy") return true;
 
         // Reserved key to get the underlying object
-        if (key === 'original') return target;
+        if (key === "original") return target;
 
         const prop = target[key];
 
-        // Short-circuit if can't access 
+        // Short-circuit if can't access
         if (!prop) return Reflect.get(target, key, receiver);
 
-        const reservedKeys = new Set(['env', 'state', 'storage', 'router']);
+        const reservedKeys = new Set(["env", "state", "storage", "router"]);
 
         // Recursively proxy any object-like properties, except reserved keys
         // This enables us to keep track of deeply-nested changes to props
-        if (typeof prop === 'object' && !prop.isProxy && !reservedKeys.has(key)) {
+        if (
+          typeof prop === "object" &&
+          !prop.isProxy &&
+          !reservedKeys.has(key) &&
+          !(prop instanceof Date)
+        ) {
           target[key] = new Proxy(prop, handler);
         }
 
@@ -55,85 +61,94 @@ export class HyperDurable<T extends object, Env = unknown> implements DurableObj
           this.state.tempKey = key;
         }
 
-        // If prop is a function, bind `this`
-        return typeof target[key] === 'function'
-          ? target[key].bind(receiver)
-          : Reflect.get(target, key, receiver);
+        if (typeof target[key] === "function") {
+          return target[key];
+        } else {
+          return Reflect.get(target, key, receiver);
+        }
       },
-      set: (target: any, key: string, value: any) => {        
+      set: (target: any, key: string, value: any) => {
         // Add key to persist data
         if (target[key] !== value) {
           if (this === target) {
             this.state.dirty.add(key as Extract<keyof T, string>);
           } else {
-            this.state.dirty.add(this.state.tempKey as Extract<keyof T, string>);
+            this.state.dirty.add(
+              this.state.tempKey as Extract<keyof T, string>
+            );
           }
         }
 
         Reflect.set(target, key, value);
         return true;
-      }
+      },
     };
 
     const hyperProxy = new Proxy(this, handler);
 
     // All operations flow through this router
     this.router
-      .get('/get/:key', request => {
+      .get("/get/:key", (request) => {
         const key = request.params.key;
         const value = hyperProxy[key];
 
-        if (typeof value === 'function') {
+        if (typeof value === "function") {
           throw new HyperError(`Cannot get method ${key}`, {
             details: `Try POSTing /call/${key}`,
-            status: 400
+            status: 400,
           });
-        } else if (typeof value === 'undefined') {
-          throw new HyperError(`Property ${key} does not exist`, { status: 404 });
+        } else if (typeof value === "undefined") {
+          throw new HyperError(`Property ${key} does not exist`, {
+            status: 404,
+          });
         }
 
-        return new Response(JSON.stringify({
-          value
-        }));
+        return new Response(
+          JSON.stringify({
+            value,
+          })
+        );
       })
-      .post('/set/:key', async request => {
+      .post("/set/:key", async (request) => {
         const key = request.params.key;
         const json = await request.json();
         const newValue = json.value;
 
         if (newValue === undefined) {
-          throw new HyperError('Unknown value', {
+          throw new HyperError("Unknown value", {
             details: 'Request body should be: { value: "some-value" }',
-            status: 400
+            status: 400,
           });
         }
-        if (typeof hyperProxy[key] === 'function') {
+        if (typeof hyperProxy[key] === "function") {
           throw new HyperError(`Cannot set method ${key}`, {
             details: `Try POSTing /call/${key}`,
-            status: 404
+            status: 404,
           });
         }
 
         hyperProxy[key] = newValue;
-        return new Response(JSON.stringify({
-          value: newValue
-        }));
+        return new Response(
+          JSON.stringify({
+            value: newValue,
+          })
+        );
       })
-      .post('/call/:key', async request => {
+      .post("/call/:key", async (request) => {
         const key = request.params.key;
         const json = await request.json();
         const { args } = json;
 
         if (args === undefined || !Array.isArray(args)) {
-          throw new HyperError('Unknown arguments', {
+          throw new HyperError("Unknown arguments", {
             details: 'Request body should be: { args: ["someArg"] }',
-            status: 400
+            status: 400,
           });
         }
-        if (typeof hyperProxy[key] !== 'function') {
+        if (typeof hyperProxy[key] !== "function") {
           throw new HyperError(`Cannot call property ${key}`, {
             details: `Try GETing /get/${key}`,
-            status: 404
+            status: 404,
           });
         }
 
@@ -141,50 +156,54 @@ export class HyperDurable<T extends object, Env = unknown> implements DurableObj
 
         try {
           value = await hyperProxy[key](...args);
-        } catch(e) {
-          throw new HyperError('Problem while calling method', {
-            details: e.message || '',
-            status: 500
+        } catch (e) {
+          throw new HyperError("Problem while calling method", {
+            details: e.message || "",
+            status: 500,
           });
         }
 
-        return new Response(JSON.stringify({
-          value: value ? value : null
-        }));
+        return new Response(
+          JSON.stringify({
+            value: value ? value : null,
+          })
+        );
       })
-      .all('*', ({ url, method }) => {
+      .all("*", ({ url, method }) => {
         const pathname = new URL(url).pathname;
         method = method.toUpperCase();
-        switch(pathname.split('/')[1]) {
-          case('get'):
-            if (method !== 'GET') {
+        switch (pathname.split("/")[1]) {
+          case "get":
+            if (method !== "GET") {
               throw new HyperError(`Cannot ${method} /get`, {
-                details: 'Use a GET request',
+                details: "Use a GET request",
                 status: 405,
-                allow: 'GET'
+                allow: "GET",
               });
             }
             break;
-          case('set'):
-            if (method !== 'POST') {
+          case "set":
+            if (method !== "POST") {
               throw new HyperError(`Cannot ${method} /set`, {
-                details: 'Use a POST request with a body: { value: "some-value" }',
+                details:
+                  'Use a POST request with a body: { value: "some-value" }',
                 status: 405,
-                allow: 'POST'
+                allow: "POST",
               });
             }
             break;
-          case('call'):
-            if (method !== 'POST') {
+          case "call":
+            if (method !== "POST") {
               throw new HyperError(`Cannot ${method} /call`, {
-                details: 'Use a POST request with a body: { args: ["someArg"] }',
+                details:
+                  'Use a POST request with a body: { args: ["someArg"] }',
                 status: 405,
-                allow: 'POST'
+                allow: "POST",
               });
             }
             break;
         }
-        throw new HyperError('Not found', { status: 404 });
+        throw new HyperError("Not found", { status: 404 });
       });
 
     return hyperProxy;
@@ -192,10 +211,10 @@ export class HyperDurable<T extends object, Env = unknown> implements DurableObj
 
   async initialize() {
     if (!this.state.initialized) {
-      this.state.initialized = this.load().catch(e => {
+      this.state.initialized = this.load().catch((e) => {
         this.state.initialized = undefined;
-        throw new HyperError('Something went wrong while initializing object', {
-          details: e.message || ''
+        throw new HyperError("Something went wrong while initializing object", {
+          details: e.message || "",
         });
       });
     }
@@ -204,7 +223,9 @@ export class HyperDurable<T extends object, Env = unknown> implements DurableObj
 
   async load() {
     if (this.state.persisted.size === 0) {
-      const persisted = await this.storage.get<Set<Extract<keyof T, string>>>('persisted');
+      const persisted = await this.storage.get<Set<Extract<keyof T, string>>>(
+        "persisted"
+      );
       if (persisted) {
         this.state.persisted = persisted;
       }
@@ -219,9 +240,9 @@ export class HyperDurable<T extends object, Env = unknown> implements DurableObj
     try {
       let newProps = false;
       for (let key of this.state.dirty) {
-        const value = this[key as string].isProxy ?
-          this[key as string].original :
-          this[key as string];
+        const value = this[key as string].isProxy
+          ? this[key as string].original
+          : this[key as string];
         await this.storage.put(key, value);
         if (!this.state.persisted.has(key)) {
           this.state.persisted.add(key);
@@ -229,10 +250,10 @@ export class HyperDurable<T extends object, Env = unknown> implements DurableObj
         }
         this.state.dirty.delete(key);
       }
-      if (newProps) await this.storage.put('persisted', this.state.persisted);
-    } catch(e) {
-      throw new HyperError('Something went wrong while persisting object', {
-        details: e.message || ''
+      if (newProps) await this.storage.put("persisted", this.state.persisted);
+    } catch (e) {
+      throw new HyperError("Something went wrong while persisting object", {
+        details: e.message || "",
       });
     }
   }
@@ -245,9 +266,9 @@ export class HyperDurable<T extends object, Env = unknown> implements DurableObj
         delete this[key as string];
         this.state.persisted.delete(key);
       }
-    } catch(e) {
-      throw new HyperError('Something went wrong while destroying object', {
-        details: e.message || ''
+    } catch (e) {
+      throw new HyperError("Something went wrong while destroying object", {
+        details: e.message || "",
       });
     }
   }
@@ -265,25 +286,29 @@ export class HyperDurable<T extends object, Env = unknown> implements DurableObj
     await this.initialize();
     return this.router
       .handle(request)
-      .then(async response => {
+      .then(async (response) => {
         if (this.state.dirty.size > 0) await this.persist();
         return response;
       })
-      .catch(e => {
-        return new Response(JSON.stringify({
-          errors: [
-            {
-              message: e.message || 'Internal Server Error',
-              details: e.details || ''
-            }
-          ]
-        }),
-        {
-          status: e.status || 500,
-          headers: e.allow ? {
-            Allow: e.allow
-          } : {}
-        });
+      .catch((e) => {
+        return new Response(
+          JSON.stringify({
+            errors: [
+              {
+                message: e.message || "Internal Server Error",
+                details: e.details || "",
+              },
+            ],
+          }),
+          {
+            status: e.status || 500,
+            headers: e.allow
+              ? {
+                Allow: e.allow,
+              }
+              : {},
+          }
+        );
       });
   }
 }

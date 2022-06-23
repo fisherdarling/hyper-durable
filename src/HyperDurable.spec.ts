@@ -41,7 +41,7 @@ describe("HyperDurable", () => {
     test("reflects other getters", () => {
       expect(counter.counter).to.equal(1);
       expect(counter.objectLikeProp).to.deep.equal([]);
-      expect(counter.dates).to.deep.equal({ created_at: CREATED_AT });
+      debugger;
       expect(counter.dates.created_at).to.deep.equal(CREATED_AT);
     });
 
