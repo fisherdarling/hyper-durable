@@ -222,55 +222,55 @@ export class HyperDurable<T extends object, Env = unknown>
   }
 
   async load() {
-    if (this.state.persisted.size === 0) {
-      const persisted = await this.storage.get<Set<Extract<keyof T, string>>>(
-        "persisted"
-      );
-      if (persisted) {
-        this.state.persisted = persisted;
-      }
-    }
-    for (let key of this.state.persisted) {
-      this[key as string] = await this.storage.get(key);
-    }
+    // if (this.state.persisted.size === 0) {
+    //   const persisted = await this.storage.get<Set<Extract<keyof T, string>>>(
+    //     "persisted"
+    //   );
+    //   if (persisted) {
+    //     this.state.persisted = persisted;
+    //   }
+    // }
+    // for (let key of this.state.persisted) {
+    //   this[key as string] = await this.storage.get(key);
+    // }
   }
 
   // Persist all dirty props
   async persist() {
-    try {
-      let newProps = false;
-      for (let key of this.state.dirty) {
-        const value = this[key as string].isProxy
-          ? this[key as string].original
-          : this[key as string];
-        await this.storage.put(key, value);
-        if (!this.state.persisted.has(key)) {
-          this.state.persisted.add(key);
-          newProps = true;
-        }
-        this.state.dirty.delete(key);
-      }
-      if (newProps) await this.storage.put("persisted", this.state.persisted);
-    } catch (e) {
-      throw new HyperError("Something went wrong while persisting object", {
-        details: e.message || "",
-      });
-    }
+    // try {
+    //   let newProps = false;
+    //   for (let key of this.state.dirty) {
+    //     const value = this[key as string].isProxy
+    //       ? this[key as string].original
+    //       : this[key as string];
+    //     await this.storage.put(key, value);
+    //     if (!this.state.persisted.has(key)) {
+    //       this.state.persisted.add(key);
+    //       newProps = true;
+    //     }
+    //     this.state.dirty.delete(key);
+    //   }
+    //   if (newProps) await this.storage.put("persisted", this.state.persisted);
+    // } catch (e) {
+    //   throw new HyperError("Something went wrong while persisting object", {
+    //     details: e.message || "",
+    //   });
+    // }
   }
 
   async destroy() {
-    try {
-      await this.storage.deleteAll();
-      this.state.dirty.clear();
-      for (let key of this.state.persisted) {
-        delete this[key as string];
-        this.state.persisted.delete(key);
-      }
-    } catch (e) {
-      throw new HyperError("Something went wrong while destroying object", {
-        details: e.message || "",
-      });
-    }
+    // try {
+    //   await this.storage.deleteAll();
+    //   this.state.dirty.clear();
+    //   for (let key of this.state.persisted) {
+    //     delete this[key as string];
+    //     this.state.persisted.delete(key);
+    //   }
+    // } catch (e) {
+    //   throw new HyperError("Something went wrong while destroying object", {
+    //     details: e.message || "",
+    //   });
+    // }
   }
 
   toObject(): T {
